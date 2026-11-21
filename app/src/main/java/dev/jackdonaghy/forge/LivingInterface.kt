@@ -254,51 +254,46 @@ private fun LivingHome(
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        LivingHeader("AN EXPERIMENT IN LESS INTERFACE", accent, onSettings)
-        Spacer(Modifier.height(8.dp))
-        Text("Move. Don't navigate.", fontSize = 38.sp, lineHeight = 42.sp,
-            fontWeight = FontWeight.Black, color = palette.text)
-        Text("One surface that changes with you.", color = palette.muted, fontSize = 16.sp)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.18f)),
-            shape = RoundedCornerShape(28.dp)
-        ) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("EXPERIMENT 01", color = accent, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Text("Experience the whole flow in 37 seconds.", color = palette.text,
-                    fontSize = 23.sp, fontWeight = FontWeight.Bold, lineHeight = 28.sp)
-                Button(onClick = { onStart(LivingDemo.plan) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Try 37-second demo")
-                }
-                Text("A preview, not a logged workout.", color = palette.muted, fontSize = 12.sp)
-            }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("FORGE / LIVING", color = accent, fontSize = 16.sp,
+                fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+            TextButton(onClick = onSettings) { Text("Settings") }
         }
-        Text("OR TRAIN FOR REAL", color = palette.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(40.dp))
+        Text(
+            "Choose your movement.",
+            color = palette.text, fontSize = 34.sp, lineHeight = 39.sp,
+            fontWeight = FontWeight.Black
+        )
+        Spacer(Modifier.height(15.dp))
         Plans.all.forEach { plan ->
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { onStart(plan) },
-                color = palette.surface,
-                shape = RoundedCornerShape(22.dp),
-                tonalElevation = 0.dp
+                color = palette.surface.copy(alpha = 0.75f),
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Row(
-                    Modifier.padding(18.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(plan.name, color = palette.text, fontWeight = FontWeight.Bold, fontSize = 21.sp)
-                        Text("${plan.durationLabel}  •  ${plan.level}", color = palette.muted, fontSize = 13.sp)
+                    Column(Modifier.weight(1f)) {
+                        Text(plan.name, color = palette.text,
+                            fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text(plan.durationLabel, color = palette.muted, fontSize = 12.sp)
                     }
-                    Text("→", color = accent, fontSize = 25.sp)
+                    Text("›", color = accent, fontSize = 27.sp)
                 }
             }
         }
-        Text("${state.sessions} sessions · ${state.minutes} minutes recorded in this lab",
-            color = palette.muted, fontSize = 12.sp)
-        TextButton(onClick = onSettings) { Text("Appearance & audio settings") }
+        Spacer(Modifier.height(8.dp))
+        TextButton(
+            onClick = { onStart(LivingDemo.plan) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Explore the 37-second demo", color = palette.accent)
+        }
     }
 }
 
@@ -517,7 +512,9 @@ private fun LivingWorkout(
                 )
             }
             Box(
-                modifier = Modifier.fillMaxWidth().height(if (compact) 26.dp else 43.dp),
+                modifier = Modifier.fillMaxWidth().height(
+                    if (tiny) 26.dp else if (compact) 38.dp else 43.dp
+                ),
                 contentAlignment = Alignment.TopCenter
             ) {
                 Text(
@@ -525,7 +522,7 @@ private fun LivingWorkout(
                     color = palette.muted,
                     fontSize = if (compact) 12.sp else 14.sp,
                     lineHeight = if (compact) 16.sp else 20.sp,
-                    maxLines = if (compact) 1 else 2,
+                    maxLines = if (tiny) 1 else 2,
                     textAlign = TextAlign.Center,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
