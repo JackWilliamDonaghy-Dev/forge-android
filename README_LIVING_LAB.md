@@ -26,3 +26,16 @@ versus two-line form tips, screen bottom spacing, and Daylight theme.
 Intensity still describes **planned visual energy**, not actual measured exertion.
 No new phone permissions or sensors. Debug APK uses the separate
 `dev.jackdonaghy.forge.living` package, and does not replace stable Forge.
+
+## Iteration 4 — final spacing polish
+- Workout header now uses the same 24dp top padding and horizontal alignment as the home header.
+- Title and guidance follow that header with a fixed offset, preserving the centred timer.
+- No other visual behavior was changed in this build.
+
+### Notes for a **future** experiment (intentionally not changed here)
+- The stronger intensity-driven visibility can make the screen harder to read; keep
+  legible text at steady contrast even while colour shifts around it.
+- The original breathing animation felt alive. Investigate a subtle continuous
+  halo or ambient pulse that never jumps in size or phase on swipe.
+- Preserve the current stable circular timer, whole-session progress bar and
+  minimalist controls while trying those alternatives.

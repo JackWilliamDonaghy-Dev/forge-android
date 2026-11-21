@@ -480,12 +480,13 @@ private fun LivingWorkout(
             compact -> 212.dp
             else -> 248.dp
         }
-        // The top region is fixed-height even if its text wraps. It stays
-        // closer to the top than the deliberately spacious home layout.
+        // Match the 24dp top inset used by Home, keeping the brand and
+        // End control clear of Android's status icons. The title follows
+        // at a fixed offset; the timer remains exactly centre-anchored.
         Row(
             Modifier.align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .padding(start = 22.dp, end = 12.dp, top = 10.dp),
+                .padding(start = 24.dp, end = 24.dp, top = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -502,7 +503,7 @@ private fun LivingWorkout(
                 .fillMaxWidth()
                 .padding(
                     start = 20.dp, end = 20.dp,
-                    top = if (compact) 45.dp else 59.dp
+                    top = if (compact) 59.dp else 73.dp
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(5.dp)
