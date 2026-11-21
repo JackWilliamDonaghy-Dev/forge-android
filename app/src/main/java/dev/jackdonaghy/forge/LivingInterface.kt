@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -38,6 +39,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +50,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import kotlin.math.pow
 
 /** A single evolving surface; the workout engine and voice cues stay unchanged. */
 @Composable
@@ -88,28 +92,51 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
         }
     }
 
-    val sceneTint = when (scene) {
+    // The visual score responds to the planned exercise and elapsed time,
+    // never to unmeasured physical exertion. No sensors are involved.
+    val targetIntensity = if (state.page == ForgePage.WORKOUT && state.plan != null && state.timer != null) {
+        VisualIntensity.score(state.plan!!, state.timer!!).toFloat()
+    } else 12f
+    val visualIntensity by animateFloatAsState(
+        targetValue = targetIntensity,
+        animationSpec = tween(if (state.reduceMotion) 0 else 700),
+        label = "whole-screen-intensity"
+    )
+    val power = (visualIntensity / 100f).coerceIn(0f, 1f)
+    val sceneHue = when (scene) {
         LivingScene.MOVE -> palette.accent
-        LivingScene.RECOVER -> Color(0xFF65B5AD)
-        LivingScene.WARM_UP -> Color(0xFFE5B86C)
-        LivingScene.COOL_DOWN -> Color(0xFF89A8DC)
+        LivingScene.RECOVER -> Color(0xFF74B5AC)
+        LivingScene.WARM_UP -> Color(0xFF97A9B2)
+        LivingScene.COOL_DOWN -> Color(0xFF89A6C1)
         LivingScene.COMPLETE -> Color(0xFF85D6A4)
-        LivingScene.PREPARE -> palette.accent
-        LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
+        LivingScene.PREPARE, LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
+    }
+    val contrast = power.pow(1.35f)
+    val targetAccent = if (scene == LivingScene.HOME || scene == LivingScene.SETTINGS) {
+        palette.accent
+    } else {
+        lerp(
+            lerp(palette.background, sceneHue, if (palette.isLight) 0.45f else 0.28f),
+            sceneHue,
+            contrast
+        )
     }
     val accent by animateColorAsState(
-        targetValue = sceneTint,
-        animationSpec = tween(if (state.reduceMotion) 0 else 750),
+        targetValue = targetAccent,
+        animationSpec = tween(if (state.reduceMotion) 0 else 650),
         label = "living-accent"
     )
     val backgroundGlow by animateColorAsState(
-        targetValue = if (palette.isLight) accent.copy(alpha = 0.13f)
-            else accent.copy(alpha = 0.21f),
-        animationSpec = tween(if (state.reduceMotion) 0 else 750),
+        targetValue = lerp(
+            palette.background,
+            sceneHue,
+            if (palette.isLight) (0.025f + power * 0.15f) else (0.02f + power * 0.34f)
+        ),
+        animationSpec = tween(if (state.reduceMotion) 0 else 650),
         label = "living-glow"
     )
     val colors = if (palette.isLight) lightColorScheme(
-        primary = accent, onPrimary = palette.onAccent,
+        primary = palette.accent, onPrimary = palette.onAccent,
         background = palette.background, onBackground = palette.text,
         surface = palette.surface, onSurface = palette.text,
         outline = palette.outline
@@ -172,6 +199,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                             LivingWorkout(
                                 plan = plan, timer = timer, step = current, scene = scene,
                                 palette = palette, accent = accent,
+                                intensity = visualIntensity,
                                 reduceMotion = state.reduceMotion,
                                 onPause = vm::playPause,
                                 onPrevious = vm::previous,
@@ -383,47 +411,41 @@ private fun LivingPreparation(
 @Composable
 private fun LivingWorkout(
     plan: Plan, timer: TimerSnapshot, step: Step, scene: LivingScene,
-    palette: ForgePalette, accent: Color, reduceMotion: Boolean,
+    palette: ForgePalette, accent: Color, intensity: Float, reduceMotion: Boolean,
     onPause: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onExit: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val progress = (1f - timer.remainingMs.toFloat() / (step.seconds * 1000f)).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
-        targetValue = progress, animationSpec = tween(if (reduceMotion) 0 else 180),
+        targetValue = progress,
+        animationSpec = tween(if (reduceMotion) 0 else 170),
         label = "dial-progress"
     )
-    val ambient = rememberInfiniteTransition(label = "breathing")
-    val breathe by ambient.animateFloat(
-        initialValue = 0.96f,
-        targetValue = 1.06f,
+    val ambient = rememberInfiniteTransition(label = "recovery-breathing")
+    val breath by ambient.animateFloat(
+        initialValue = 0.975f,
+        targetValue = 1.035f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2000),
+            animation = tween(2300),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "breathing-radius"
+        label = "recovery-breathing-scale"
     )
-    val dialScale by animateFloatAsState(
-        targetValue = when (scene) {
-            LivingScene.RECOVER -> if (reduceMotion) 1f else breathe
-            LivingScene.MOVE -> 1.01f
-            else -> 0.95f
-        },
-        animationSpec = tween(if (reduceMotion) 0 else 400),
-        label = "dial-scale"
-    )
-    var dragX by remember { mutableFloatStateOf(0f) }
-    val next = plan.steps.drop(timer.index + 1)
-        .firstOrNull { it.phase == Phase.EXERCISE || it.phase == Phase.COOLDOWN }
+    val dialScale = if (scene == LivingScene.RECOVER && !reduceMotion) breath else 1f
     val seconds = ((timer.remainingMs + 999) / 1000).toInt()
-    Column(
+    var dragX by remember { mutableFloatStateOf(0f) }
+
+    // Fixed zones prevent a long or short form tip from shifting the clock.
+    // A narrow/short screen uses the same geometry, only with a smaller dial.
+    BoxWithConstraints(
         Modifier.fillMaxSize()
             .pointerInput(timer.index) {
                 detectHorizontalDragGestures(
                     onDragStart = { dragX = 0f },
-                    onHorizontalDrag = { change, amount ->
+                    onHorizontalDrag = { change, delta ->
                         change.consume()
-                        dragX += amount
+                        dragX += delta
                     },
                     onDragEnd = {
                         if (dragX < -110f) onNext()
@@ -433,78 +455,152 @@ private fun LivingWorkout(
                     onDragCancel = { dragX = 0f }
                 )
             }
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(13.dp)
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Next exercise") { onNext(); true },
+                    CustomAccessibilityAction("Previous exercise") { onPrevious(); true }
+                )
+            }
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("FORGE / LIVING", color = accent, fontSize = 16.sp, fontWeight = FontWeight.Black,
-                modifier = Modifier.weight(1f))
-            TextButton(onClick = onExit) { Text("End") }
+        val compact = maxHeight < 760.dp
+        val tiny = maxHeight < 550.dp
+        val dialSize = when {
+            tiny -> 150.dp
+            maxHeight < 660.dp -> 184.dp
+            compact -> 212.dp
+            else -> 248.dp
         }
-        Spacer(Modifier.height(12.dp))
-        Text(LivingScenes.heading(scene), color = accent, fontSize = 13.sp,
-            fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-        Text(step.name, color = palette.text, fontSize = 31.sp,
-            fontWeight = FontWeight.Black, textAlign = TextAlign.Center, lineHeight = 37.sp)
-        Text(step.guidance, color = palette.muted, fontSize = 15.sp,
-            textAlign = TextAlign.Center, lineHeight = 21.sp)
-        Spacer(Modifier.height(20.dp))
-        Box(Modifier.size(250.dp).scale(dialScale).clickable {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onPause()
-        }.semantics {
-            contentDescription = if (timer.running) "Pause workout timer" else "Resume workout timer"
-        }, contentAlignment = Alignment.Center) {
+        // The top region is always the same height, even if its text wraps.
+        Row(
+            Modifier.align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(start = 22.dp, end = 12.dp, top = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "FORGE", color = palette.muted, fontSize = 13.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                onClick = onExit,
+                modifier = Modifier.semantics { contentDescription = "End workout" }
+            ) { Text("×", color = palette.muted, fontSize = 23.sp) }
+        }
+        Column(
+            Modifier.align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(
+                    start = 20.dp, end = 20.dp,
+                    top = if (compact) 56.dp else 82.dp
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                LivingScenes.heading(scene),
+                color = accent, fontSize = 12.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp
+            )
+            Box(
+                modifier = Modifier.fillMaxWidth().height(if (compact) 58.dp else 78.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    step.name,
+                    color = palette.text,
+                    fontSize = if (compact) 25.sp else 30.sp,
+                    lineHeight = if (compact) 29.sp else 35.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            Box(
+                modifier = Modifier.fillMaxWidth().height(if (compact) 26.dp else 43.dp),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Text(
+                    step.guidance,
+                    color = palette.muted,
+                    fontSize = if (compact) 12.sp else 14.sp,
+                    lineHeight = if (compact) 16.sp else 20.sp,
+                    maxLines = if (compact) 1 else 2,
+                    textAlign = TextAlign.Center,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Only the ring animates its scale; its geometric center never moves.
+        Box(
+            Modifier.align(Alignment.Center)
+                .size(dialSize)
+                .scale(dialScale)
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onPause()
+                }
+                .semantics {
+                    contentDescription =
+                        if (timer.running) "Pause workout timer" else "Resume workout timer"
+                },
+            contentAlignment = Alignment.Center
+        ) {
             Canvas(Modifier.fillMaxSize()) {
-                val width = 13.dp.toPx()
-                val inset = width / 2 + 9.dp.toPx()
-                drawCircle(color = accent.copy(alpha = 0.11f))
+                val stroke = 12.dp.toPx()
+                val pad = stroke / 2f + 8.dp.toPx()
+                val outer = Size(size.width - 2f * pad, size.height - 2f * pad)
+                val intensityDepth = (intensity / 100f).coerceIn(0f, 1f)
+                drawCircle(color = accent.copy(alpha = 0.035f + intensityDepth * 0.14f))
                 drawArc(
-                    color = accent.copy(alpha = 0.22f), startAngle = -90f, sweepAngle = 360f,
-                    useCenter = false, topLeft = Offset(inset, inset),
-                    size = Size(size.width - inset * 2, size.height - inset * 2),
-                    style = Stroke(width = width, cap = StrokeCap.Round)
+                    color = accent.copy(alpha = 0.16f + intensityDepth * 0.12f),
+                    startAngle = -90f, sweepAngle = 360f,
+                    useCenter = false,
+                    topLeft = Offset(pad, pad), size = outer,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
                 )
                 drawArc(
-                    color = accent, startAngle = -90f, sweepAngle = 360f * animatedProgress,
-                    useCenter = false, topLeft = Offset(inset, inset),
-                    size = Size(size.width - inset * 2, size.height - inset * 2),
-                    style = Stroke(width = width, cap = StrokeCap.Round)
+                    color = accent,
+                    startAngle = -90f, sweepAngle = 360f * animatedProgress,
+                    useCenter = false,
+                    topLeft = Offset(pad, pad), size = outer,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round)
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("%02d:%02d".format(seconds / 60, seconds % 60),
-                    color = palette.text, fontSize = 45.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.height(6.dp))
-                Text(if (timer.running) "TAP TO PAUSE" else "TAP TO RESUME",
-                    color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "%02d:%02d".format(seconds / 60, seconds % 60),
+                    color = palette.text,
+                    fontSize = if (tiny) 32.sp else 42.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    if (timer.running) "PAUSE" else "RESUME",
+                    color = palette.muted,
+                    fontSize = 11.sp, fontWeight = FontWeight.Medium
+                )
             }
         }
-        Spacer(Modifier.height(10.dp))
-        Text("STEP ${timer.index + 1} / ${plan.steps.size}  ·  ${plan.name.uppercase()}",
-            color = palette.muted, fontSize = 11.sp)
-        LinearProgressIndicator(
-            progress = { (timer.index + progress) / plan.steps.size },
-            modifier = Modifier.fillMaxWidth().height(5.dp),
-            color = accent,
-            trackColor = palette.surface
-        )
-        if (scene == LivingScene.RECOVER) {
-            Text("Let your breath settle.", color = palette.text, fontSize = 18.sp,
-                fontWeight = FontWeight.Medium)
+
+        // A single tiny status: no navigation bars, duplicate advice or buttons.
+        Row(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                .padding(
+                    start = 26.dp, end = 26.dp,
+                    bottom = if (compact) 18.dp else 30.dp
+                ),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "INTENSITY  ${intensity.roundToInt()}",
+                color = palette.muted,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text("SWIPE  ↔", color = palette.muted, fontSize = 11.sp)
         }
-        if (next != null) {
-            Text("COMING UP", color = accent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(next.name, color = palette.text, fontSize = 17.sp)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = onPrevious, modifier = Modifier.weight(1f)) { Text("← Previous") }
-            OutlinedButton(onClick = onNext, modifier = Modifier.weight(1f)) { Text("Next →") }
-        }
-        Text("Swipe left or right to change steps. Tap the circle to pause.",
-            color = palette.muted, fontSize = 12.sp, textAlign = TextAlign.Center)
     }
 }
 
