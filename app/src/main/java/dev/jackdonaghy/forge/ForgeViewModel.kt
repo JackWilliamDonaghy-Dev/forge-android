@@ -12,7 +12,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+enum class ForgePage { HOME, SETTINGS, PREPARATION, WORKOUT }
+
 data class ForgeState(
+    val page: ForgePage = ForgePage.HOME,
+    val pendingPlan: Plan? = null,
+    val preparationIndex: Int = 0,
     val plan: Plan? = null,
     val timer: TimerSnapshot? = null,
     val speak: Boolean = true,
@@ -67,10 +72,48 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
         }
     }
 
-    fun start(plan: Plan) {
+    fun openSettings() {
+        if (mutable.value.page == ForgePage.HOME) {
+            mutable.value = mutable.value.copy(page = ForgePage.SETTINGS)
+        }
+    }
+    fun closeSettings() {
+        if (mutable.value.page == ForgePage.SETTINGS) {
+            mutable.value = mutable.value.copy(page = ForgePage.HOME)
+        }
+    }
+    fun prepare(plan: Plan) {
+        if (mutable.value.page != ForgePage.HOME) return
+        mutable.value = mutable.value.copy(
+            page = ForgePage.PREPARATION,
+            pendingPlan = plan,
+            preparationIndex = 0
+        )
+    }
+    fun confirmPreparation() {
+        val current = mutable.value
+        if (current.page != ForgePage.PREPARATION) return
+        val plan = current.pendingPlan ?: return
+        if (current.preparationIndex < WorkoutPreparation.steps.lastIndex) {
+            mutable.value = current.copy(preparationIndex = current.preparationIndex + 1)
+        } else {
+            start(plan)
+        }
+    }
+    fun cancelPreparation() {
+        if (mutable.value.page == ForgePage.PREPARATION) {
+            mutable.value = mutable.value.copy(
+                page = ForgePage.HOME, pendingPlan = null, preparationIndex = 0
+            )
+        }
+    }
+    private fun start(plan: Plan) {
         timer = WorkoutTimer(plan)
         savedCompletion = false
-        mutable.value = mutable.value.copy(plan = plan, timer = timer!!.snapshot)
+        mutable.value = mutable.value.copy(
+            page = ForgePage.WORKOUT, plan = plan, pendingPlan = null,
+            preparationIndex = 0, timer = timer!!.snapshot
+        )
         dispatch(timer!!.toggle(SystemClock.elapsedRealtime()))
         publish()
     }
@@ -87,7 +130,7 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
     fun leave() {
         pauseOnBackground()
         timer = null
-        mutable.value = mutable.value.copy(plan = null, timer = null)
+        mutable.value = mutable.value.copy(page = ForgePage.HOME, plan = null, timer = null)
     }
 
     fun setSpeak(on: Boolean) {

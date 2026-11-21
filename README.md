@@ -4,9 +4,10 @@ Native Kotlin and Jetpack Compose interval-training app. No HTML wrapper or netw
 
 ## Features
 - Three bodyweight presets: **Foundation** 24:20, **Build** 29:30, **Challenge** 33:48.
-- Short voice prompts: exercise name only, "Rest." during breaks, no repeated round announcements.
+- Voice coaching names the next exercise during rest and gives one specific form correction at each main exercise; never repeats round numbers.
 - Timer with beeps, preview, skip, previous, pause/resume without repeating prompts.
-- Four selectable themes (**Ember**, **Ocean**, **Forest**, **Daylight**) saved locally between launches.
+- Separate Settings screen for voice, beeps, and four persistent themes (**Ember**, **Ocean**, **Forest**, **Daylight**).
+- Three full-screen, tap-anywhere preparation checkpoints for water, workout clothing, and a floor mat.
 - Local-only session totals and no accounts or server.
 - Sessions intentionally pause when the activity leaves the foreground. Use the phone unlocked for spoken coaching.
 

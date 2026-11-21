@@ -35,13 +35,13 @@ object Plans {
         repeat(rounds) { round ->
             exercises.forEachIndexed { i, name ->
                 // Round counts are for the plan structure, not spoken on every exercise.
-                steps += Step(name, "Keep a comfortable, controlled pace.", workSeconds, Phase.EXERCISE)
+                steps += Step(name, ExerciseTips.forExercise(name), workSeconds, Phase.EXERCISE)
                 val upcoming = when {
                     i < exercises.lastIndex -> exercises[i + 1]
                     round < rounds - 1 -> exercises.first()
                     else -> cooldown.first()
                 }
-                steps += Step("Rest", "Up next: $upcoming", restSeconds, Phase.REST)
+                steps += Step("Rest", "Next: $upcoming.", restSeconds, Phase.REST)
             }
         }
 
