@@ -20,26 +20,32 @@ class VoiceCoach(context: Context) {
             }
         }
     }
+
     fun play(cue: Cue, voice: Boolean, beeps: Boolean) {
-        when(cue) {
+        when (cue) {
             is Cue.Started -> {
                 if (beeps) tone.startTone(ToneGenerator.TONE_PROP_ACK, 120)
                 if (voice && ready) {
-                    val phrase = when(cue.step.phase) {
-                        Phase.WARMUP -> "Warm up. "
-                        Phase.EXERCISE -> "Go. "
-                        Phase.REST -> "Rest. "
-                        Phase.COOLDOWN -> "Cool down. "
-                    } + cue.step.name + ". " + cue.step.guidance
-                    tts?.speak(phrase, TextToSpeech.QUEUE_FLUSH, null, "exercise")
+                    tts?.speak(CoachingPrompts.start(cue.step),
+                        TextToSpeech.QUEUE_FLUSH, null, "exercise")
                 }
             }
-            is Cue.Countdown -> if (beeps) tone.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+            is Cue.Countdown -> if (beeps) {
+                tone.startTone(ToneGenerator.TONE_PROP_BEEP, 100)
+            }
             Cue.Finished -> {
                 if (beeps) tone.startTone(ToneGenerator.TONE_PROP_ACK, 200)
-                if (voice && ready) tts?.speak("Workout complete. Well done.", TextToSpeech.QUEUE_FLUSH, null, "done")
+                if (voice && ready) {
+                    tts?.speak(CoachingPrompts.completed,
+                        TextToSpeech.QUEUE_FLUSH, null, "done")
+                }
             }
         }
     }
-    fun close() { tts?.stop(); tts?.shutdown(); tone.release() }
+
+    fun close() {
+        tts?.stop()
+        tts?.shutdown()
+        tone.release()
+    }
 }

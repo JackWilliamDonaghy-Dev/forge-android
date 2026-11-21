@@ -17,14 +17,17 @@ data class ForgeState(
     val timer: TimerSnapshot? = null,
     val speak: Boolean = true,
     val beep: Boolean = true,
+    val theme: ForgeTheme = ForgeTheme.EMBER,
     val sessions: Int = 0,
     val minutes: Int = 0
 )
+
 class ForgeViewModel(application: Application): AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("forge", 0)
     private val mutable = MutableStateFlow(ForgeState(
         speak = prefs.getBoolean("speak", true),
         beep = prefs.getBoolean("beep", true),
+        theme = ForgeTheme.fromPreference(prefs.getString("theme", null)),
         sessions = prefs.getInt("sessions", 0),
         minutes = prefs.getInt("minutes", 0)
     ))
@@ -47,18 +50,23 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
             }
         }
     }
+
     private fun dispatch(cues: List<Cue>) { cues.forEach { outgoing.tryEmit(it) } }
+
     private fun publish() {
         val current = timer ?: return
         mutable.value = mutable.value.copy(timer = current.snapshot)
         if (current.snapshot.completed && !savedCompletion) {
             savedCompletion = true
             val newSessions = mutable.value.sessions + 1
-            val newMinutes = mutable.value.minutes + (mutable.value.plan!!.durationSeconds + 30) / 60
-            prefs.edit().putInt("sessions", newSessions).putInt("minutes", newMinutes).apply()
+            val newMinutes = mutable.value.minutes +
+                (mutable.value.plan!!.durationSeconds + 30) / 60
+            prefs.edit().putInt("sessions", newSessions)
+                .putInt("minutes", newMinutes).apply()
             mutable.value = mutable.value.copy(sessions = newSessions, minutes = newMinutes)
         }
     }
+
     fun start(plan: Plan) {
         timer = WorkoutTimer(plan)
         savedCompletion = false
@@ -66,6 +74,7 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
         dispatch(timer!!.toggle(SystemClock.elapsedRealtime()))
         publish()
     }
+
     fun playPause() {
         timer?.let { dispatch(it.toggle(SystemClock.elapsedRealtime())); publish() }
     }
@@ -80,6 +89,7 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
         timer = null
         mutable.value = mutable.value.copy(plan = null, timer = null)
     }
+
     fun setSpeak(on: Boolean) {
         prefs.edit().putBoolean("speak", on).apply()
         mutable.value = mutable.value.copy(speak = on)
@@ -87,5 +97,9 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
     fun setBeep(on: Boolean) {
         prefs.edit().putBoolean("beep", on).apply()
         mutable.value = mutable.value.copy(beep = on)
+    }
+    fun setTheme(theme: ForgeTheme) {
+        prefs.edit().putString("theme", theme.name).apply()
+        mutable.value = mutable.value.copy(theme = theme)
     }
 }

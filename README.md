@@ -4,7 +4,9 @@ Native Kotlin and Jetpack Compose interval-training app. No HTML wrapper or netw
 
 ## Features
 - Three bodyweight presets: **Foundation** 24:20, **Build** 29:30, **Challenge** 33:48.
-- Exercise/rest/warmup/cooldown timer, spoken coaching, beeps, preview, skip, previous and pause.
+- Short voice prompts: exercise name only, "Rest." during breaks, no repeated round announcements.
+- Timer with beeps, preview, skip, previous, pause/resume without repeating prompts.
+- Four selectable themes (**Ember**, **Ocean**, **Forest**, **Daylight**) saved locally between launches.
 - Local-only session totals and no accounts or server.
 - Sessions intentionally pause when the activity leaves the foreground. Use the phone unlocked for spoken coaching.
 
@@ -14,8 +16,13 @@ The exercise routines were reconstructed from the original requirements; **revie
 Open this repository in Android Studio (JDK 17, Android SDK 35), let Gradle sync, and run the app.
 Alternatively see **Actions → Android CI → latest successful run → Artifacts → forge-debug-apk**.
 Extract the artifact ZIP to get `app-debug.apk`, suitable for testing.
-Use a **signed release APK** for sharing gift apps; never commit release keys.
+
+**Important update note:** GitHub's ephemeral debug signing key may be different from the one used
+for a previous downloaded debug APK. In that case Android cannot install over the old app:
+uninstall the previous debug app first, which clears its local workout statistics and settings.
+For long-term updates, use a private, stable release-signing key kept outside the repository.
+Never commit release signing keys to Git.
 
 ## Known limitations
 No background workouts, no custom interval editor, no detailed session history.
-This PR is an initial implementation. Android device/CI build has not been verified yet.
+Test all themes, speech and pause behaviour on a physical device before release.
