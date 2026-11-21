@@ -7,11 +7,11 @@ android {
     namespace = "dev.jackdonaghy.forge"
     compileSdk = 35
     defaultConfig {
-        applicationId = "dev.jackdonaghy.forge"
+        applicationId = "dev.jackdonaghy.forge.living"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.0"
+        versionCode = 1
+        versionName = "1.1.0-lab.1"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
@@ -24,6 +24,7 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))
     implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
