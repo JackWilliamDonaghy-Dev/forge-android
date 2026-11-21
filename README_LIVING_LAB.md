@@ -1,37 +1,28 @@
-# Forge Living Interface — Lab 2: intensity as an interface
+# Forge Living Lab — Iteration 3
 
-This is **not merged into main**; it remains a visual/interaction experiment.
+This branch remains **experimental**. `main` continues to be Forge 1.0.
 
-## Core concept
-The app knows whether you're warming up, training, recovering or cooling down.
-Rather than displaying separate screens and buttons, it morphs a single
-centre-anchored timer and the strength of the colour contrast.
+Changes based on physical-phone review:
+- **No timer jumping:** The circle never scales. Recovery instead adds a faint,
+  continuously running alpha pulse to the background halo with a smoothly
+  entering/leaving envelope. Swiping between steps cannot relocate the dial.
+- **Full workout progress bar:** Restored beneath the timer, with progress
+  weighted by actual duration rather than step count. The filled colour follows
+  the workout intensity. Shows a legible completion percentage.
+- **Navigation-bar clearance:** UI content respects the Android navigation
+  inset, so captions and progress remain above the system gesture bar.
+- **Professional typography:** Short, semibold labels replace thin
+  pseudo-technical captions. The workout keeps the title higher toward the top,
+  while the home page's spacious original top margin stays intact.
+- **Softer preparation dimming:** Water, clothing and mat remain visually
+  secondary, but first-time users have a brighter cue and description.
+- **Two intensity responses:** The scene's background, timer and progress bar
+  take the entire 0–100 visual response. Text accents use the narrower
+  25–75% range, and main instructions/countdown stay readable at all intensities.
 
-- **Calm warm-up:** low colour separation, soft gradients (intensity ≈ 9–30).
-- **Exercise:** stronger tonal difference and brighter dial (intensity ≈ 60–98).
-- **Rest:** colour depth gradually recedes during the interval (≈ 45 → 20).
-- **Cooldown:** very subdued contrast (≈ 23 → 7).
-- **Flow:** smooth transitions preserve the sliding colour feel.
-- **Layout:** fixed-height text regions; timer anchored centrally regardless of
-  one-line or two-line exercise tips.
-- **Control:** tap dial to pause/resume; swipe across the screen to next/previous.
-  On-screen Previous and Next buttons removed. Screen-reader actions are
-  provided for these gestures; End control remains available.
-- **Home:** reduced to workout selection, demo and settings; phase screen only
-  shows essential information.
+Try the 37-second demo, especially swipe changes during recovery, one-line
+versus two-line form tips, screen bottom spacing, and Daylight theme.
 
-The numeric intensity is a **visual design signal generated from the exercise
-plan and elapsed time**, NOT measured effort, heart rate, workout difficulty
-calibrated to the individual, or medical advice. No sensors or permissions.
-
-## Test
-1. Install "Forge Living Lab" APK alongside regular Forge 1.0.
-2. Run 37-second demo. Watch calm warmup, high-contrast exercise,
-   contrast fading during rest, and subdued cooldown.
-3. Swipe between a short and long guidance line; timer must stay in place.
-4. Tap the centre timer to pause and resume; swipe left/right to change steps.
-5. Check compact display, settings and Reduce motion.
-6. Give candid feedback on usefulness and visual hierarchy.
-
-This is a physical-phone prototype; passing CI tests does not validate
-ergonomics, contrast accessibility, or personal exercise form.
+Intensity still describes **planned visual energy**, not actual measured exertion.
+No new phone permissions or sensors. Debug APK uses the separate
+`dev.jackdonaghy.forge.living` package, and does not replace stable Forge.

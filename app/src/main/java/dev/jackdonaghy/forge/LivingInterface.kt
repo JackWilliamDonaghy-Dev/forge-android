@@ -24,7 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -96,7 +96,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
     // never to unmeasured physical exertion. No sensors are involved.
     val targetIntensity = if (state.page == ForgePage.WORKOUT && state.plan != null && state.timer != null) {
         VisualIntensity.score(state.plan!!, state.timer!!).toFloat()
-    } else 12f
+    } else if (scene == LivingScene.PREPARE) 30f else 12f
     val visualIntensity by animateFloatAsState(
         targetValue = targetIntensity,
         animationSpec = tween(if (state.reduceMotion) 0 else 700),
@@ -111,16 +111,24 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
         LivingScene.COMPLETE -> Color(0xFF85D6A4)
         LivingScene.PREPARE, LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
     }
-    val contrast = power.pow(1.35f)
-    val targetAccent = if (scene == LivingScene.HOME || scene == LivingScene.SETTINGS) {
-        palette.accent
-    } else {
-        lerp(
-            lerp(palette.background, sceneHue, if (palette.isLight) 0.45f else 0.28f),
-            sceneHue,
-            contrast
-        )
+    // Full-range colour for the scene and dial; text responds only 25–75%.
+    // The exercise title and clock digits always use stable, readable text colours.
+    val fullColour = lerp(palette.background, sceneHue, power)
+    val targetAccent = when (scene) {
+        LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
+        LivingScene.PREPARE -> lerp(palette.background, sceneHue, if (palette.isLight) 0.68f else 0.59f)
+        else -> fullColour
     }
+    val targetTextAccent = when (scene) {
+        LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
+        LivingScene.PREPARE -> lerp(palette.muted, sceneHue, 0.53f)
+        else -> lerp(palette.muted, sceneHue, VisualTone.textResponse(visualIntensity))
+    }
+    val textAccent by animateColorAsState(
+        targetValue = targetTextAccent,
+        animationSpec = tween(if (state.reduceMotion) 0 else 650),
+        label = "restrained-text-accent"
+    )
     val accent by animateColorAsState(
         targetValue = targetAccent,
         animationSpec = tween(if (state.reduceMotion) 0 else 650),
@@ -130,7 +138,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
         targetValue = lerp(
             palette.background,
             sceneHue,
-            if (palette.isLight) (0.025f + power * 0.15f) else (0.02f + power * 0.34f)
+            if (palette.isLight) (0.055f + power * 0.22f) else (0.05f + power * 0.40f)
         ),
         animationSpec = tween(if (state.reduceMotion) 0 else 650),
         label = "living-glow"
@@ -154,7 +162,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                 Brush.verticalGradient(
                     listOf(backgroundGlow, palette.background, palette.background)
                 )
-            )
+            ).navigationBarsPadding()
         ) {
             when (state.page) {
                 ForgePage.HOME -> LivingHome(
@@ -178,6 +186,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                     index = state.preparationIndex,
                     palette = palette,
                     accent = accent,
+                    secondaryText = lerp(palette.muted, palette.text, 0.20f),
                     reduceMotion = state.reduceMotion,
                     onConfirm = {
                         feedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -198,7 +207,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                             val current = plan.steps[timer.index]
                             LivingWorkout(
                                 plan = plan, timer = timer, step = current, scene = scene,
-                                palette = palette, accent = accent,
+                                palette = palette, accent = accent, textAccent = textAccent,
                                 intensity = visualIntensity,
                                 reduceMotion = state.reduceMotion,
                                 onPause = vm::playPause,
@@ -362,7 +371,7 @@ private fun PreferenceRow(
 
 @Composable
 private fun LivingPreparation(
-    index: Int, palette: ForgePalette, accent: Color,
+    index: Int, palette: ForgePalette, accent: Color, secondaryText: Color,
     reduceMotion: Boolean, onConfirm: () -> Unit
 ) {
     val step = WorkoutPreparation.steps[index]
@@ -394,7 +403,7 @@ private fun LivingPreparation(
             Text(step.symbol, fontSize = 74.sp)
             Text(step.title, color = palette.text, fontSize = 32.sp,
                 fontWeight = FontWeight.Black, lineHeight = 38.sp, textAlign = TextAlign.Center)
-            Text(step.description, color = palette.muted, fontSize = 17.sp,
+            Text(step.description, color = secondaryText, fontSize = 17.sp,
                 textAlign = TextAlign.Center, lineHeight = 25.sp)
             Spacer(Modifier.height(30.dp))
             Text(if (accepted) "✓  READY" else "TAP ANYWHERE WHEN READY",
@@ -406,7 +415,8 @@ private fun LivingPreparation(
 @Composable
 private fun LivingWorkout(
     plan: Plan, timer: TimerSnapshot, step: Step, scene: LivingScene,
-    palette: ForgePalette, accent: Color, intensity: Float, reduceMotion: Boolean,
+    palette: ForgePalette, accent: Color, textAccent: Color,
+    intensity: Float, reduceMotion: Boolean,
     onPause: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onExit: () -> Unit
 ) {
@@ -417,17 +427,22 @@ private fun LivingWorkout(
         animationSpec = tween(if (reduceMotion) 0 else 170),
         label = "dial-progress"
     )
-    val ambient = rememberInfiniteTransition(label = "recovery-breathing")
+    // Keep the dial perfectly still. Only a faint halo opacity breathes.
+    // The oscillator runs continuously through swipes; a separate smoothed
+    // envelope brings it in/out when entering/leaving a rest interval.
+    val ambient = rememberInfiniteTransition(label = "continuous-halo")
     val breath by ambient.animateFloat(
-        initialValue = 0.975f,
-        targetValue = 1.035f,
+        initialValue = 0f, targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2300),
-            repeatMode = RepeatMode.Reverse
+            animation = tween(2300), repeatMode = RepeatMode.Reverse
         ),
-        label = "recovery-breathing-scale"
+        label = "halo-opacity"
     )
-    val dialScale = if (scene == LivingScene.RECOVER && !reduceMotion) breath else 1f
+    val recoveryEnvelope by animateFloatAsState(
+        targetValue = if (scene == LivingScene.RECOVER && !reduceMotion) 1f else 0f,
+        animationSpec = tween(if (reduceMotion) 0 else 900),
+        label = "smooth-recovery-entrance"
+    )
     val seconds = ((timer.remainingMs + 999) / 1000).toInt()
     var dragX by remember { mutableFloatStateOf(0f) }
 
@@ -465,7 +480,8 @@ private fun LivingWorkout(
             compact -> 212.dp
             else -> 248.dp
         }
-        // The top region is always the same height, even if its text wraps.
+        // The top region is fixed-height even if its text wraps. It stays
+        // closer to the top than the deliberately spacious home layout.
         Row(
             Modifier.align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -486,14 +502,14 @@ private fun LivingWorkout(
                 .fillMaxWidth()
                 .padding(
                     start = 20.dp, end = 20.dp,
-                    top = if (compact) 56.dp else 82.dp
+                    top = if (compact) 45.dp else 59.dp
                 ),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Text(
                 LivingScenes.heading(scene),
-                color = accent, fontSize = 12.sp,
+                color = textAccent, fontSize = 13.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp
             )
             Box(
@@ -529,11 +545,11 @@ private fun LivingWorkout(
             }
         }
 
-        // Only the ring animates its scale; its geometric center never moves.
+        // Nothing in the clock scales or shifts: all breathing is painted
+        // as alpha within the same fixed-size Canvas.
         Box(
             Modifier.align(Alignment.Center)
                 .size(dialSize)
-                .scale(dialScale)
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     onPause()
@@ -550,6 +566,14 @@ private fun LivingWorkout(
                 val outer = Size(size.width - 2f * pad, size.height - 2f * pad)
                 val intensityDepth = (intensity / 100f).coerceIn(0f, 1f)
                 drawCircle(color = accent.copy(alpha = 0.035f + intensityDepth * 0.14f))
+                if (recoveryEnvelope > 0f) {
+                    drawCircle(
+                        color = accent.copy(
+                            alpha = recoveryEnvelope * (0.035f + 0.055f * breath)
+                        ),
+                        radius = size.minDimension * 0.46f
+                    )
+                }
                 drawArc(
                     color = accent.copy(alpha = 0.16f + intensityDepth * 0.12f),
                     startAngle = -90f, sweepAngle = 360f,
@@ -580,23 +604,48 @@ private fun LivingWorkout(
             }
         }
 
-        // A single tiny status: no navigation bars, duplicate advice or buttons.
-        Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .padding(
-                    start = 26.dp, end = 26.dp,
-                    bottom = if (compact) 18.dp else 30.dp
-                ),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Whole-session progress returns as the clearest visual indicator of
+        // the living colour. This area sits above Android's system navigation.
+        val totalProgress = WorkoutProgress.fraction(plan, timer)
+        val animatedTotal by animateFloatAsState(
+            targetValue = totalProgress,
+            animationSpec = tween(if (reduceMotion) 0 else 350),
+            label = "whole-workout-progress"
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 24.dp, end = 24.dp, bottom = if (compact) 13.dp else 22.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp)
         ) {
-            Text(
-                "INTENSITY  ${intensity.roundToInt()}",
-                color = palette.muted,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text("SWIPE  ↔", color = palette.muted, fontSize = 11.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "INTENSITY  ${intensity.roundToInt()}",
+                    color = textAccent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "${(animatedTotal * 100f).roundToInt()}% COMPLETE",
+                    color = palette.muted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Canvas(Modifier.fillMaxWidth().height(11.dp)) {
+                val radius = CornerRadius(size.height / 2f, size.height / 2f)
+                drawRoundRect(color = palette.surface, cornerRadius = radius)
+                if (animatedTotal > 0f) {
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(accent.copy(alpha = 0.66f), accent)
+                        ),
+                        size = Size(size.width * animatedTotal.coerceIn(0f, 1f), size.height),
+                        cornerRadius = radius
+                    )
+                }
+            }
         }
     }
 }
