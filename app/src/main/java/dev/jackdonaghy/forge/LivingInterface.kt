@@ -304,7 +304,7 @@ private fun LivingHeader(kicker: String, accent: Color, onBack: (() -> Unit)? = 
         Modifier.fillMaxWidth().padding(bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("FORGE / LIVING", color = accent, fontWeight = FontWeight.Black, fontSize = 17.sp,
+        Text("FORGE", color = accent, fontWeight = FontWeight.Black, fontSize = 17.sp,
             modifier = Modifier.weight(1f))
         if (onBack != null) TextButton(onClick = onBack) { Text("Back") }
     }
@@ -324,7 +324,7 @@ private fun LivingHome(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("FORGE / LIVING", color = accent, fontSize = 16.sp,
+            Text("FORGE", color = accent, fontSize = 16.sp,
                 fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
             TextButton(onClick = onSettings) { Text("Settings") }
         }
@@ -439,7 +439,7 @@ private fun LivingSettings(
                 }
             }
         }
-        Text("All settings are local to Living Lab. Your regular Forge app is unchanged.",
+        Text("Preferences are saved on this device.",
             color = palette.muted, fontSize = 12.sp)
     }
 }
