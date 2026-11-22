@@ -59,3 +59,43 @@ This file is the durable reference workflow, independent of any one chat.
 - Include cool-space/hydration reminder and avoid reliance on unreliable phone
   background execution for the v1 timer.
 - Current core workout preset durations and exercise definitions are in `WorkoutPlan.kt`.
+
+## Design principles — learned through real Forge phone testing (November 2026)
+
+These are **preferred starting points**, not mandatory rules. Reconsider them when a
+specific person's needs or the job of the app justify something different.
+
+1. **One purpose, one main action.** Optimise for the user's current activity,
+   not for displaying every feature at once. Often the best navigation is none.
+2. **Make the environment respond, not the controls jump.** Ambient colours,
+   smooth gradients, subtle breathing light and progress can feel alive while
+   timers, controls and important text remain spatially anchored.
+3. **Use restrained but personal themes.** Offer a few thoughtful colour palettes,
+   preferably in a separate settings screen. Main instructions stay high-contrast
+   and readable independently of intensity-driven visual effects.
+4. **Never restart an ambient animation on a screen or exercise transition.**
+   Let one continuous oscillator carry through phases, with smoothly changing
+   strength. Discontinuous movement is distracting even when brief.
+5. **Stable layout is a feature.** Reserve space for one- or two-line instructions;
+   do not let changing text shift the main timer. Respect status/navigation bars
+   and use tested insets on actual phones.
+6. **Use motion sparingly and with purpose.** Support Reduce motion, and consider
+   Still / Gentle / Alive. Animation should give an interface character without
+   competing with its purpose.
+7. **Preserve a meaningful full-task progress view.** Where useful, time-weighted
+   progress can convey the journey more clearly than arbitrary numbered steps.
+   Consider letting that same surface enable reversible, non-destructive
+   exploration rather than creating another page.
+8. **Secondary information should be quiet, not invisible.** Preparation
+   screens can be subdued, but don't dim them so far that first-time users
+   suspect a malfunction. Avoid tiny, thin, pseudo-technical labels.
+9. **Use short, context-aware guidance.** For workouts, one actionable form tip
+   per exercise and the next movement during rest are useful; repeated round
+   announcements and lengthy rest speeches are not.
+10. **Experiment safely.** Radical interactions live on isolated branches and
+    separately installable app IDs. Avoid measuring/claiming health intensity
+    from plan-derived visual scores, preserve accessible fallback interactions,
+    and test on a real phone before merging.
+
+The core test: *Does this change let a user focus more fully on what they
+came to do, rather than on operating the software itself?*
