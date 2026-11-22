@@ -22,6 +22,8 @@ data class ForgeState(
     val timer: TimerSnapshot? = null,
     val speak: Boolean = true,
     val beep: Boolean = true,
+    val reduceMotion: Boolean = false,
+    val ambientStyle: AmbientStyle = AmbientStyle.ALIVE,
     val theme: ForgeTheme = ForgeTheme.EMBER,
     val sessions: Int = 0,
     val minutes: Int = 0
@@ -32,6 +34,8 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
     private val mutable = MutableStateFlow(ForgeState(
         speak = prefs.getBoolean("speak", true),
         beep = prefs.getBoolean("beep", true),
+        reduceMotion = prefs.getBoolean("reduce_motion", false),
+        ambientStyle = AmbientStyle.fromPreference(prefs.getString("ambient_style", null)),
         theme = ForgeTheme.fromPreference(prefs.getString("theme", null)),
         sessions = prefs.getInt("sessions", 0),
         minutes = prefs.getInt("minutes", 0)
@@ -63,6 +67,8 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
         mutable.value = mutable.value.copy(timer = current.snapshot)
         if (current.snapshot.completed && !savedCompletion) {
             savedCompletion = true
+            // The short lab preview is not a completed fitness session.
+            if (mutable.value.plan?.id == LivingDemo.plan.id) return
             val newSessions = mutable.value.sessions + 1
             val newMinutes = mutable.value.minutes +
                 (mutable.value.plan!!.durationSeconds + 30) / 60
@@ -140,6 +146,14 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
     fun setBeep(on: Boolean) {
         prefs.edit().putBoolean("beep", on).apply()
         mutable.value = mutable.value.copy(beep = on)
+    }
+    fun setReduceMotion(on: Boolean) {
+        prefs.edit().putBoolean("reduce_motion", on).apply()
+        mutable.value = mutable.value.copy(reduceMotion = on)
+    }
+    fun setAmbientStyle(style: AmbientStyle) {
+        prefs.edit().putString("ambient_style", style.name).apply()
+        mutable.value = mutable.value.copy(ambientStyle = style)
     }
     fun setTheme(theme: ForgeTheme) {
         prefs.edit().putString("theme", theme.name).apply()
