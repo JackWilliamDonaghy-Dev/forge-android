@@ -7,11 +7,11 @@ android {
     namespace = "dev.jackdonaghy.forge"
     compileSdk = 35
     defaultConfig {
-        applicationId = "dev.jackdonaghy.forge.ambient"
+        applicationId = "dev.jackdonaghy.forge.timefold"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.2.0-ambient.1"
+        versionName = "1.3.0-timefold.1"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {

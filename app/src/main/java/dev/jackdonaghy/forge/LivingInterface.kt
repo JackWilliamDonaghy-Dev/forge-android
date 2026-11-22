@@ -15,6 +15,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -359,8 +360,16 @@ private fun LivingHome(
             onClick = { onStart(LivingDemo.plan) },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Explore the 37-second demo", color = palette.accent)
+            Text("Explore Timefold in 37 seconds", color = palette.accent)
         }
+        Text(
+            "Hold the workout progress bar to look ahead — release to return.",
+            color = palette.muted,
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -521,6 +530,8 @@ private fun LivingWorkout(
     // animation, it never restarts when the user swipes between exercises.
     val seconds = ((timer.remainingMs + 999) / 1000).toInt()
     var dragX by remember { mutableFloatStateOf(0f) }
+    var peekFraction by remember(plan.id) { mutableStateOf<Float?>(null) }
+    val peek = peekFraction?.let { TimefoldTimeline.atFraction(plan, it) }
 
     // Fixed zones prevent a long or short form tip from shifting the clock.
     // A narrow/short screen uses the same geometry, only with a smaller dial.
@@ -585,7 +596,8 @@ private fun LivingWorkout(
             verticalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             Text(
-                LivingScenes.heading(scene),
+                if (peek != null) "LOOKING AHEAD · ${peek.timestamp}"
+                else LivingScenes.heading(scene),
                 color = textAccent, fontSize = 13.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 2.5.sp
             )
@@ -594,7 +606,7 @@ private fun LivingWorkout(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    step.name,
+                    (peek?.step ?: step).name,
                     color = palette.text,
                     fontSize = if (compact) 25.sp else 30.sp,
                     lineHeight = if (compact) 29.sp else 35.sp,
@@ -611,7 +623,7 @@ private fun LivingWorkout(
                 contentAlignment = Alignment.TopCenter
             ) {
                 Text(
-                    step.guidance,
+                    (peek?.step ?: step).guidance,
                     color = palette.muted,
                     fontSize = if (compact) 12.sp else 14.sp,
                     lineHeight = if (compact) 16.sp else 20.sp,
@@ -718,28 +730,77 @@ private fun LivingWorkout(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "${(animatedTotal * 100f).roundToInt()}% COMPLETE",
+                    if (peek != null) "AT ${peek.timestamp}"
+                    else "${(animatedTotal * 100f).roundToInt()}% COMPLETE",
                     color = palette.muted,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
-            Canvas(Modifier.fillMaxWidth().height(11.dp)) {
-                val radius = CornerRadius(size.height / 2f, size.height / 2f)
-                drawRoundRect(color = palette.surface, cornerRadius = radius)
-                if (animatedTotal > 0f) {
-                    drawRoundRect(
-                        brush = Brush.horizontalGradient(
-                            listOf(
-                                accent.copy(
-                                    alpha = 0.73f + 0.19f * ambientEnvelope * ambientWave
-                                ),
-                                accent
+            // The whole-progress indicator also becomes a timeline.
+            // 52dp hit region; the visual track itself stays at 11dp.
+            Box(
+                Modifier.fillMaxWidth().height(52.dp)
+                    .clickable(onClickLabel = "Preview next movement, tap again to close") {
+                        peekFraction = if (peekFraction == null) {
+                            TimefoldTimeline.nextMovementFraction(plan, timer.index)
+                        } else null
+                    }
+                    .pointerInput(plan.id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { start ->
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                peekFraction = (start.x / size.width.toFloat()).coerceIn(0f, 1f)
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                peekFraction = (change.position.x / size.width.toFloat())
+                                    .coerceIn(0f, 1f)
+                            },
+                            onDragEnd = { peekFraction = null },
+                            onDragCancel = { peekFraction = null }
+                        )
+                    }
+                    .semantics {
+                        contentDescription = if (peek == null) {
+                            "Workout timeline. Hold and drag to preview future exercises."
+                        } else {
+                            "Preview at ${peek.timestamp}: ${peek.step.name}. Tap to return."
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.fillMaxWidth().height(11.dp)) {
+                    val radius = CornerRadius(size.height / 2f, size.height / 2f)
+                    drawRoundRect(color = palette.surface, cornerRadius = radius)
+                    if (animatedTotal > 0f) {
+                        drawRoundRect(
+                            brush = Brush.horizontalGradient(
+                                listOf(
+                                    accent.copy(
+                                        alpha = 0.73f + 0.19f * ambientEnvelope * ambientWave
+                                    ),
+                                    accent
+                                )
+                            ),
+                            size = Size(
+                                size.width * animatedTotal.coerceIn(0f, 1f), size.height
+                            ),
+                            cornerRadius = radius
+                        )
+                    }
+                    if (peek != null) {
+                        // White marker shows the preview position. Filled bar stays
+                        // at actual workout progress and the timer is untouched.
+                        drawCircle(
+                            color = palette.text,
+                            radius = 6.dp.toPx(),
+                            center = Offset(
+                                size.width * peek.planFraction,
+                                size.height / 2f
                             )
-                        ),
-                        size = Size(size.width * animatedTotal.coerceIn(0f, 1f), size.height),
-                        cornerRadius = radius
-                    )
+                        )
+                    }
                 }
             }
         }
