@@ -23,6 +23,7 @@ data class ForgeState(
     val speak: Boolean = true,
     val beep: Boolean = true,
     val reduceMotion: Boolean = false,
+    val ambientStyle: AmbientStyle = AmbientStyle.ALIVE,
     val theme: ForgeTheme = ForgeTheme.EMBER,
     val sessions: Int = 0,
     val minutes: Int = 0
@@ -34,6 +35,7 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
         speak = prefs.getBoolean("speak", true),
         beep = prefs.getBoolean("beep", true),
         reduceMotion = prefs.getBoolean("reduce_motion", false),
+        ambientStyle = AmbientStyle.fromPreference(prefs.getString("ambient_style", null)),
         theme = ForgeTheme.fromPreference(prefs.getString("theme", null)),
         sessions = prefs.getInt("sessions", 0),
         minutes = prefs.getInt("minutes", 0)
@@ -148,6 +150,10 @@ class ForgeViewModel(application: Application): AndroidViewModel(application) {
     fun setReduceMotion(on: Boolean) {
         prefs.edit().putBoolean("reduce_motion", on).apply()
         mutable.value = mutable.value.copy(reduceMotion = on)
+    }
+    fun setAmbientStyle(style: AmbientStyle) {
+        prefs.edit().putString("ambient_style", style.name).apply()
+        mutable.value = mutable.value.copy(ambientStyle = style)
     }
     fun setTheme(theme: ForgeTheme) {
         prefs.edit().putString("theme", theme.name).apply()

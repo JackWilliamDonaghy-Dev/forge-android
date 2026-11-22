@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -64,6 +65,31 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
     val coach = remember(context) { VoiceCoach(context) }
     var confirmExit by remember { mutableStateOf(false) }
 
+    // The phase lives in the ROOT composition. Swiping exercises, changing
+    // scenes or redrawing the timer does not restart this oscillator.
+    val ambientCycle = if (state.reduceMotion || state.ambientStyle == AmbientStyle.STILL) {
+        0.5f
+    } else {
+        val heartbeat = rememberInfiniteTransition(label = "shared-ambient-clock")
+        val cycle by heartbeat.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 7200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "continuous-wave"
+        )
+        cycle
+    }
+    val ambientWave = AmbientPhysics.wave(ambientCycle)
+    val ambientEnvelope by animateFloatAsState(
+        targetValue = if (state.reduceMotion) 0f else
+            AmbientPhysics.presence(scene) * state.ambientStyle.strength,
+        animationSpec = tween(if (state.reduceMotion) 0 else 1600),
+        label = "continuous-scene-envelope"
+    )
+
     DisposableEffect(coach) { onDispose { coach.close() } }
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -113,7 +139,9 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
     }
     // Full-range colour for the scene and dial; text responds only 25–75%.
     // The exercise title and clock digits always use stable, readable text colours.
-    val fullColour = lerp(palette.background, sceneHue, power)
+    val fullColour = lerp(
+        palette.background, sceneHue, AmbientPhysics.accentDepth(visualIntensity)
+    )
     val targetAccent = when (scene) {
         LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
         LivingScene.PREPARE -> lerp(palette.background, sceneHue, if (palette.isLight) 0.68f else 0.59f)
@@ -122,7 +150,8 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
     val targetTextAccent = when (scene) {
         LivingScene.HOME, LivingScene.SETTINGS -> palette.accent
         LivingScene.PREPARE -> lerp(palette.muted, sceneHue, 0.53f)
-        else -> lerp(palette.muted, sceneHue, VisualTone.textResponse(visualIntensity))
+        // Instructions stay readable; ambient light, not typography, carries energy.
+        else -> lerp(palette.muted, palette.text, 0.40f)
     }
     val textAccent by animateColorAsState(
         targetValue = targetTextAccent,
@@ -164,6 +193,32 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                 )
             ).navigationBarsPadding()
         ) {
+            // A light field moves subtly *behind* the interface. Its motion
+            // stays continuous across preparation, exercise and recovery.
+            Canvas(Modifier.fillMaxSize()) {
+                val alpha = AmbientPhysics.glowOpacity(
+                    visualIntensity, ambientEnvelope, ambientWave
+                )
+                if (alpha > 0.001f) {
+                    val center = Offset(
+                        size.width * (0.50f + 0.085f * (ambientWave - 0.5f) * ambientEnvelope),
+                        size.height * (0.43f - 0.035f * (ambientWave - 0.5f) * ambientEnvelope)
+                    )
+                    val radius = size.maxDimension * 0.67f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                sceneHue.copy(alpha = alpha),
+                                sceneHue.copy(alpha = alpha * 0.28f),
+                                Color.Transparent
+                            ),
+                            center = center, radius = radius
+                        ),
+                        center = center,
+                        radius = radius
+                    )
+                }
+            }
             when (state.page) {
                 ForgePage.HOME -> LivingHome(
                     state = state,
@@ -180,6 +235,7 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                     onSpeak = vm::setSpeak,
                     onBeep = vm::setBeep,
                     onMotion = vm::setReduceMotion,
+                    onAmbient = vm::setAmbientStyle,
                     onTheme = vm::setTheme
                 )
                 ForgePage.PREPARATION -> LivingPreparation(
@@ -209,6 +265,8 @@ fun LivingInterfaceRoot(vm: ForgeViewModel = viewModel()) {
                                 plan = plan, timer = timer, step = current, scene = scene,
                                 palette = palette, accent = accent, textAccent = textAccent,
                                 intensity = visualIntensity,
+                                ambientWave = ambientWave,
+                                ambientEnvelope = ambientEnvelope,
                                 reduceMotion = state.reduceMotion,
                                 onPause = vm::playPause,
                                 onPrevious = vm::previous,
@@ -310,7 +368,8 @@ private fun LivingHome(
 private fun LivingSettings(
     state: ForgeState, palette: ForgePalette, accent: Color,
     onClose: () -> Unit, onSpeak: (Boolean) -> Unit, onBeep: (Boolean) -> Unit,
-    onMotion: (Boolean) -> Unit, onTheme: (ForgeTheme) -> Unit
+    onMotion: (Boolean) -> Unit, onAmbient: (AmbientStyle) -> Unit,
+    onTheme: (ForgeTheme) -> Unit
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
@@ -322,8 +381,38 @@ private fun LivingSettings(
             state.speak, onSpeak, palette)
         PreferenceRow("Countdown sounds", "Beep at the end of each interval",
             state.beep, onBeep, palette)
-        PreferenceRow("Reduce motion", "Remove animated ambient breathing and transitions",
+        PreferenceRow("Reduce motion", "Disable ambient movement and transitions",
             state.reduceMotion, onMotion, palette)
+        Text("AMBIENT PRESENCE", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            AmbientStyle.entries.forEach { option ->
+                val selected = option == state.ambientStyle
+                Surface(
+                    modifier = Modifier.weight(1f).clickable { onAmbient(option) },
+                    shape = RoundedCornerShape(13.dp),
+                    color = if (selected) palette.surface else palette.background,
+                    border = androidx.compose.foundation.BorderStroke(
+                        if (selected) 2.dp else 1.dp,
+                        if (selected) palette.accent else palette.outline
+                    )
+                ) {
+                    Column(
+                        Modifier.padding(vertical = 13.dp, horizontal = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            option.label, color = palette.text, fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp, textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+        Text(
+            "Still / Gentle / Alive change only the atmospheric light. " +
+                "Your timer and text never move.",
+            color = palette.muted, fontSize = 12.sp
+        )
         Text("COLOUR WORLDS", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         ForgeTheme.entries.forEach { theme ->
             val swatch = theme.palette()
@@ -416,7 +505,8 @@ private fun LivingPreparation(
 private fun LivingWorkout(
     plan: Plan, timer: TimerSnapshot, step: Step, scene: LivingScene,
     palette: ForgePalette, accent: Color, textAccent: Color,
-    intensity: Float, reduceMotion: Boolean,
+    intensity: Float, ambientWave: Float, ambientEnvelope: Float,
+    reduceMotion: Boolean,
     onPause: () -> Unit, onPrevious: () -> Unit, onNext: () -> Unit,
     onExit: () -> Unit
 ) {
@@ -427,22 +517,8 @@ private fun LivingWorkout(
         animationSpec = tween(if (reduceMotion) 0 else 170),
         label = "dial-progress"
     )
-    // Keep the dial perfectly still. Only a faint halo opacity breathes.
-    // The oscillator runs continuously through swipes; a separate smoothed
-    // envelope brings it in/out when entering/leaving a rest interval.
-    val ambient = rememberInfiniteTransition(label = "continuous-halo")
-    val breath by ambient.animateFloat(
-        initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2300), repeatMode = RepeatMode.Reverse
-        ),
-        label = "halo-opacity"
-    )
-    val recoveryEnvelope by animateFloatAsState(
-        targetValue = if (scene == LivingScene.RECOVER && !reduceMotion) 1f else 0f,
-        animationSpec = tween(if (reduceMotion) 0 else 900),
-        label = "smooth-recovery-entrance"
-    )
+    // Ambient wave is inherited from the root. Unlike an interval-scoped
+    // animation, it never restarts when the user swipes between exercises.
     val seconds = ((timer.remainingMs + 999) / 1000).toInt()
     var dragX by remember { mutableFloatStateOf(0f) }
 
@@ -566,15 +642,29 @@ private fun LivingWorkout(
                 val pad = stroke / 2f + 8.dp.toPx()
                 val outer = Size(size.width - 2f * pad, size.height - 2f * pad)
                 val intensityDepth = (intensity / 100f).coerceIn(0f, 1f)
-                drawCircle(color = accent.copy(alpha = 0.035f + intensityDepth * 0.14f))
-                if (recoveryEnvelope > 0f) {
+                val innerCenter = Offset(size.width * 0.5f, size.height * 0.5f)
+                val halo = AmbientPhysics.haloOpacity(
+                    ambientEnvelope, ambientWave
+                )
+                if (halo > 0.001f) {
+                    val haloRadius = size.minDimension * 0.49f
                     drawCircle(
-                        color = accent.copy(
-                            alpha = recoveryEnvelope * (0.035f + 0.055f * breath)
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                accent.copy(alpha = halo),
+                                accent.copy(alpha = halo * 0.32f),
+                                Color.Transparent
+                            ),
+                            center = innerCenter,
+                            radius = haloRadius
                         ),
-                        radius = size.minDimension * 0.46f
+                        radius = haloRadius,
+                        center = innerCenter
                     )
                 }
+                drawCircle(
+                    color = accent.copy(alpha = 0.027f + intensityDepth * 0.085f)
+                )
                 drawArc(
                     color = accent.copy(alpha = 0.16f + intensityDepth * 0.12f),
                     startAngle = -90f, sweepAngle = 360f,
@@ -640,7 +730,12 @@ private fun LivingWorkout(
                 if (animatedTotal > 0f) {
                     drawRoundRect(
                         brush = Brush.horizontalGradient(
-                            listOf(accent.copy(alpha = 0.66f), accent)
+                            listOf(
+                                accent.copy(
+                                    alpha = 0.73f + 0.19f * ambientEnvelope * ambientWave
+                                ),
+                                accent
+                            )
                         ),
                         size = Size(size.width * animatedTotal.coerceIn(0f, 1f), size.height),
                         cornerRadius = radius

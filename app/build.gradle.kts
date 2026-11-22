@@ -7,11 +7,11 @@ android {
     namespace = "dev.jackdonaghy.forge"
     compileSdk = 35
     defaultConfig {
-        applicationId = "dev.jackdonaghy.forge.living"
+        applicationId = "dev.jackdonaghy.forge.ambient"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.1.0-lab.4"
+        versionCode = 1
+        versionName = "1.2.0-ambient.1"
     }
     buildTypes { release { isMinifyEnabled = false } }
     compileOptions {
